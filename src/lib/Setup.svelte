@@ -26,8 +26,6 @@
 
   // Barony config
   let baronyPath = '';
-  let characterClass = 'human';
-  const CLASSES = ['human', 'skeleton', 'automaton', 'goblin', 'incubus', 'succubus', 'vampire', 'goatman'];
 
   onMount(async () => {
     try {
@@ -40,7 +38,6 @@
           apiKey = saved.api_key ?? '';
           selectedModel = saved.model ?? '';
           baronyPath = saved.barony_path ?? '';
-          characterClass = saved.character_class ?? 'human';
         }
       }
     } catch (e) {
@@ -131,7 +128,6 @@
           api_key: apiKey || null,
           model: selectedModel,
           barony_path: baronyPath || null,
-          character_class: characterClass,
         },
       });
       savedMsg = 'Configuration sauvegardée.';
@@ -245,14 +241,6 @@
         <span class="field-label">Chemin vers l'exécutable</span>
         <input class="field-input" type="text" bind:value={baronyPath}
           placeholder="/chemin/vers/barony" />
-      </label>
-      <label class="form-field">
-        <span class="field-label">Classe du personnage</span>
-        <select class="field-input field-select" bind:value={characterClass}>
-          {#each CLASSES as cls}
-            <option value={cls}>{cls.charAt(0).toUpperCase() + cls.slice(1)}</option>
-          {/each}
-        </select>
       </label>
     </div>
   </section>

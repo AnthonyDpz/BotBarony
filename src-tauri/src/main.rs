@@ -19,7 +19,6 @@ pub struct ProviderConfig {
     pub api_key: Option<String>,
     pub model: String,
     pub barony_path: Option<String>,
-    pub character_class: String,
 }
 
 fn config_path() -> std::path::PathBuf {
@@ -38,7 +37,7 @@ async fn list_models(
     base_url: Option<String>,
     api_key: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let provider = ai_provider::build_provider(&provider, base_url.as_deref(), api_key.as_deref())
+    let provider = ai_provider::build_provider(&provider, base_url.as_deref(), api_key.as_deref(), None)
         .map_err(|e| e.to_string())?;
     provider.list_models().await.map_err(|e| e.to_string())
 }
@@ -50,7 +49,7 @@ async fn check_provider_health(
     base_url: Option<String>,
     api_key: Option<String>,
 ) -> Result<bool, String> {
-    let provider = ai_provider::build_provider(&provider, base_url.as_deref(), api_key.as_deref())
+    let provider = ai_provider::build_provider(&provider, base_url.as_deref(), api_key.as_deref(), None)
         .map_err(|e| e.to_string())?;
     provider.health_check().await.map_err(|e| e.to_string())
 }
@@ -121,11 +120,13 @@ async fn test_provider(
     api_key: Option<String>,
     model: String,
 ) -> Result<String, String> {
-    let p = ai_provider::build_provider(&provider, base_url.as_deref(), api_key.as_deref())
-        .map_err(|e| e.to_string())?;
-    // Inject the selected model into the provider via downcasting is complex;
-    // instead pass model in the prompt context.
-    let _ = model; // model selection is handled by the provider's public field at construction
+    let p = ai_provider::build_provider(
+        &provider,
+        base_url.as_deref(),
+        api_key.as_deref(),
+        Some(&model),
+    )
+    .map_err(|e| e.to_string())?;
     p.complete("You are a test assistant.", "Reply with exactly: OK")
         .await
         .map_err(|e| e.to_string())
