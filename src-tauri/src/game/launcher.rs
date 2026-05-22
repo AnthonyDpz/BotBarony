@@ -7,7 +7,7 @@
 ///      sentinel or a timed screenshot check).
 ///   3. Send the key sequence required to: New Game → choose class → enter
 ///      dungeon.
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Child;
 use anyhow::{bail, Context};
 use tracing::{info, warn};

@@ -21,7 +21,13 @@ pub async fn capture_screen() -> anyhow::Result<Vec<u8>> {
             .next()
             .ok_or_else(|| anyhow::anyhow!("No screens found"))?;
         let image = primary.capture().context("Screen capture failed")?;
-        let png = image.to_png(None).context("PNG encoding failed")?;
+        // screenshots::Image is image::ImageBuffer<Rgba<u8>, Vec<u8>> (image 0.24).
+        // Wrap in DynamicImage and encode to PNG in memory.
+        let dyn_img = ::image::DynamicImage::ImageRgba8(image);
+        let mut png = Vec::new();
+        dyn_img
+            .write_to(&mut std::io::Cursor::new(&mut png), ::image::ImageOutputFormat::Png)
+            .context("PNG encoding failed")?;
         Ok::<_, anyhow::Error>(png)
     })
     .await?
@@ -92,7 +98,7 @@ pub async fn analyse_screenshot(
     provider: &dyn crate::ai_provider::AIProvider,
 ) -> anyhow::Result<VisionAnalysis> {
     use base64::Engine;
-    let b64 = base64::engine::general_purpose::STANDARD.encode(png_bytes);
+    let _b64 = base64::engine::general_purpose::STANDARD.encode(png_bytes);
 
     let system = "You are a vision assistant for a Barony game bot. \
         Analyse the screenshot and describe what is happening. \
