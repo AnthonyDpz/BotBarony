@@ -36,15 +36,9 @@ serde_json = "1"
 # HTTP client for AI providers
 reqwest = { version = "0.12", features = ["json", "stream"] }
 
-# Input simulation (keyboard + mouse)
-enigo = "0.2"
-
 # Screenshot capture
 screenshots = "0.8"
 
-# File system watcher (for barony.log)
-notify = "6"
-notify-debouncer-mini = "0.4"
 
 # Error handling
 anyhow = "1"
