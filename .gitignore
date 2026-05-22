@@ -1,0 +1,29 @@
+# Rust / Tauri
+target/
+src-tauri/target/
+*.lock.bak
+
+# Node / Svelte / Vite
+node_modules/
+dist/
+.svelte-kit/
+
+# Tauri build outputs
+src-tauri/gen/
+bundle/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Runtime data
+*.lua.tmp
+history.jsonl

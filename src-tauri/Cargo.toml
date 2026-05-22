@@ -1,0 +1,72 @@
+[package]
+name = "bot-barony"
+version = "0.1.0"
+edition = "2021"
+description = "An AI-powered desktop bot that plays Barony autonomously"
+authors = ["AnthonyDpz"]
+license = "MIT"
+
+[lib]
+name = "bot_barony_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "bot-barony"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri core
+tauri = { version = "2", features = ["devtools"] }
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# HTTP client for AI providers
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Input simulation (keyboard + mouse)
+enigo = "0.2"
+
+# Screenshot capture
+screenshots = "0.8"
+
+# File system watcher (for barony.log)
+notify = "6"
+notify-debouncer-mini = "0.4"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+regex = "1"
+tokio-stream = "0.1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
