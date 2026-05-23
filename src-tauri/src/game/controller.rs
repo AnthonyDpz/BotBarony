@@ -70,6 +70,9 @@ pub struct InventoryItem {
     #[serde(rename = "type")] pub item_type: i32,
     pub count: i32,
     pub identified: bool,
+    #[serde(default)] pub name: String,
+    #[serde(default)] pub status: i32,    // 0=broken … 5=legendary
+    #[serde(default)] pub beatitude: i32, // -1=cursed, 0=normal, 1=blessed
 }
 
 // ─── Pending request map ──────────────────────────────────────────────────────
@@ -281,6 +284,14 @@ impl GameAPI {
     /// Query game / intro state (returns raw JSON Value).
     pub async fn status(&self) -> anyhow::Result<serde_json::Value> {
         self.client.send_cmd("status", None).await
+    }
+
+    /// Use the first item of the given Barony item_type found in inventory.
+    /// Returns the item name on success.
+    pub async fn use_item_of_type(&self, type_id: i32) -> anyhow::Result<String> {
+        let args = format!("{{\"type\":{type_id}}}");
+        let data = self.client.send_cmd("useItemOfType", Some(&args)).await?;
+        Ok(data["name"].as_str().unwrap_or("").to_string())
     }
 
     pub async fn poll_events(&self) -> Vec<GameEvent> {

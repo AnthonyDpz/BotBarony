@@ -26,8 +26,8 @@
 
   // Barony config
   let baronyPath = '';
-  let characterClass = 'wanderer';
-  let characterRace  = 'Human';
+  let characterClass = 'random';
+  let characterRace  = 'random';
 
   // Launch state
   let launching     = false;
@@ -55,8 +55,8 @@
           apiKey = saved.api_key ?? '';
           selectedModel = saved.model ?? '';
           baronyPath      = saved.barony_path      ?? '';
-        characterClass  = saved.character_class  ?? 'wanderer';
-        characterRace   = saved.character_race   ?? 'Human';
+        characterClass  = saved.character_class  ?? 'random';
+        characterRace   = saved.character_race   ?? 'random';
         }
       }
     } catch (e) {
@@ -297,6 +297,7 @@
       <label class="form-field">
         <span class="field-label">Classe</span>
         <select class="field-input field-select" bind:value={characterClass}>
+          <option value="random">🎲 Aléatoire</option>
           {#each CLASSES as c}
             <option value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
           {/each}
@@ -305,6 +306,7 @@
       <label class="form-field">
         <span class="field-label">Race</span>
         <select class="field-input field-select" bind:value={characterRace}>
+          <option value="random">🎲 Aléatoire</option>
           {#each RACES as r}
             <option value={r}>{r}</option>
           {/each}

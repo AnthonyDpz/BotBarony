@@ -12,6 +12,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{info, warn};
 
 use crate::game::controller::{BaronyClient, GameAPI};
+use crate::game::prologue;
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -77,15 +78,31 @@ pub fn auto_detect_barony() -> Option<PathBuf> {
 /// The caller is responsible for keeping the `Child` process alive — this function
 /// intentionally leaks the `Child` so Tauri's main thread can manage the lifetime.
 pub async fn launch_and_start_game(config: LaunchConfig) -> anyhow::Result<Arc<BaronyClient>> {
-    // ── Validate class / race ─────────────────────────────────────────────────
-    let class = config.character_class.to_lowercase();
+    // ── Resolve class / race (random if requested) ────────────────────────────
+    let class_input = config.character_class.to_lowercase();
+    let class: String = if class_input == "random" || class_input.is_empty() {
+        let idx = (rand_u32() as usize) % VALID_CLASSES.len();
+        VALID_CLASSES[idx].to_string()
+    } else {
+        class_input
+    };
+
+    let race_input = config.character_race.clone();
+    let race: String = if race_input.eq_ignore_ascii_case("random") || race_input.is_empty() {
+        let idx = (rand_u32() as usize) % VALID_RACES.len();
+        VALID_RACES[idx].to_string()
+    } else {
+        race_input
+    };
+
     if !VALID_CLASSES.contains(&class.as_str()) {
         bail!("Unknown class {:?}. Valid classes: {:?}", class, VALID_CLASSES);
     }
-    let race = &config.character_race;
     if !VALID_RACES.contains(&race.as_str()) {
         bail!("Unknown race {:?}. Valid races: {:?}", race, VALID_RACES);
     }
+
+    info!("Run will use class={class} race={race}");
 
     // ── Spawn Barony ──────────────────────────────────────────────────────────
     let exe = &config.barony_executable;
@@ -160,7 +177,7 @@ pub async fn launch_and_start_game(config: LaunchConfig) -> anyhow::Result<Arc<B
     click(&api, "race").await?;
     sleep(Duration::from_millis(500)).await;
 
-    click(&api, race).await?;
+    click(&api, &race).await?;
     sleep(Duration::from_millis(500)).await;
 
     click(&api, "back_button").await?;
@@ -170,10 +187,57 @@ pub async fn launch_and_start_game(config: LaunchConfig) -> anyhow::Result<Arc<B
     click(&api, "ready").await?;
     info!("Clicked Ready — game is loading");
 
+    // ── Wait until dungeon is loaded (in_game = true) ─────────────────────────
+    let in_game = wait_in_game(&api, 60).await;
+    if !in_game {
+        warn!("Timeout waiting for dungeon to load — prologue skipped");
+        return Ok(client);
+    }
+    info!("Dungeon loaded — starting prologue");
+
+    // ── Prologue: scan inventory + learn spells ───────────────────────────────
+    match prologue::run_prologue(&api, &class, &race).await {
+        Ok(ctx) => {
+            if let Err(e) = prologue::save_context(&ctx).await {
+                warn!("Could not save start context: {e}");
+            }
+            info!("Prologue: learned {} spell(s), {} item(s) recorded",
+                  ctx.spells_learned.len(), ctx.inventory.len());
+        }
+        Err(e) => warn!("Prologue failed: {e}"),
+    }
+
     Ok(client)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Simple 32-bit pseudo-random number using the system time as seed.
+/// Avoids a `rand` dependency — good enough for picking class/race.
+fn rand_u32() -> u32 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(12345);
+    // xorshift32
+    let mut x = nanos ^ 0x9e3779b9;
+    x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+    x
+}
+
+/// Poll `status` every second until `in_game = true` (max `max_secs`).
+async fn wait_in_game(api: &GameAPI, max_secs: u32) -> bool {
+    for _ in 0..max_secs {
+        if let Ok(s) = api.status().await {
+            if s["in_game"].as_bool().unwrap_or(false) {
+                return true;
+            }
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
+    false
+}
 
 /// Try to connect to BotAPI every second for up to `max_secs` seconds.
 async fn retry_connect(client: Arc<BaronyClient>, max_secs: u32) -> bool {
