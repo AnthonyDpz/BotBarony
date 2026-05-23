@@ -23,9 +23,12 @@ struct ChatMessage<'a> {
     content: &'a str,
 }
 
+// Ollama returns {"message": {...}, "done": true, ...} on success
+// or {"error": "model not found"} on failure — we handle both.
 #[derive(Debug, Deserialize)]
 struct ChatResponse {
-    message: MessageContent,
+    message: Option<MessageContent>,
+    error: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,7 +83,7 @@ impl AIProvider for OllamaProvider {
     async fn list_models(&self) -> anyhow::Result<Vec<String>> {
         let url = format!("{}/api/tags", self.base_url);
         debug!("GET {url}");
-        let resp: TagsResponse = self.client.get(&url).send().await?.json().await?;
+        let resp: TagsResponse = self.client.get(&url).send().await?.error_for_status()?.json().await?;
         Ok(resp.models.into_iter().map(|m| m.name).collect())
     }
 
@@ -97,7 +100,12 @@ impl AIProvider for OllamaProvider {
         };
         debug!("POST {url}");
         let resp: ChatResponse = self.client.post(&url).json(&body).send().await?.json().await?;
-        Ok(resp.message.content)
+        if let Some(err) = resp.error {
+            anyhow::bail!("Ollama error: {err}");
+        }
+        resp.message
+            .map(|m| m.content)
+            .ok_or_else(|| anyhow::anyhow!("Ollama returned no message content"))
     }
 
     #[instrument(skip(self), fields(provider = "Ollama"))]

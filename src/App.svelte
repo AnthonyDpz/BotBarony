@@ -43,7 +43,7 @@
   <!-- Main content area -->
   <section class="content">
     {#if currentPage === 'setup'}
-      <Setup />
+      <Setup on:saved={() => (currentPage = 'dashboard')} />
     {:else if currentPage === 'dashboard'}
       <Dashboard />
     {:else if currentPage === 'history'}

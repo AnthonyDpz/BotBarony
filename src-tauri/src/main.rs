@@ -1,14 +1,39 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::Manager;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+use serde::{Deserialize, Serialize};
 
 mod ai_provider;
 mod game;
 mod lua_manager;
 mod run_analyst;
+
+// ─── Provider Config (persisted) ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfig {
+    pub provider: String,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+    pub model: String,
+    pub barony_path: Option<String>,
+    #[serde(default = "default_class")]
+    pub character_class: String,
+    #[serde(default = "default_race")]
+    pub character_race: String,
+}
+
+fn default_class() -> String { "wanderer".to_string() }
+fn default_race()  -> String { "Human".to_string() }
+
+fn config_path() -> std::path::PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("BotBarony")
+        .join("provider_config.json")
+}
 
 // ─── Tauri Commands ────────────────────────────────────────────────────────────
 
@@ -19,7 +44,7 @@ async fn list_models(
     base_url: Option<String>,
     api_key: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let provider = ai_provider::build_provider(&provider, base_url.as_deref(), api_key.as_deref())
+    let provider = ai_provider::build_provider(&provider, base_url.as_deref(), api_key.as_deref(), None)
         .map_err(|e| e.to_string())?;
     provider.list_models().await.map_err(|e| e.to_string())
 }
@@ -31,7 +56,7 @@ async fn check_provider_health(
     base_url: Option<String>,
     api_key: Option<String>,
 ) -> Result<bool, String> {
-    let provider = ai_provider::build_provider(&provider, base_url.as_deref(), api_key.as_deref())
+    let provider = ai_provider::build_provider(&provider, base_url.as_deref(), api_key.as_deref(), None)
         .map_err(|e| e.to_string())?;
     provider.health_check().await.map_err(|e| e.to_string())
 }
@@ -69,6 +94,74 @@ async fn get_lua_knowledge() -> Result<lua_manager::LuaKnowledge, String> {
     lua_manager::load_all().await.map_err(|e| e.to_string())
 }
 
+/// Persist the selected provider configuration to disk.
+#[tauri::command]
+async fn save_provider_config(config: ProviderConfig) -> Result<(), String> {
+    let path = config_path();
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+    tokio::fs::write(&path, json).await.map_err(|e| e.to_string())?;
+    info!("Provider config saved to {:?}", path);
+    Ok(())
+}
+
+/// Load the previously saved provider configuration, if any.
+#[tauri::command]
+async fn load_provider_config() -> Result<Option<ProviderConfig>, String> {
+    let path = config_path();
+    if !path.exists() {
+        return Ok(None);
+    }
+    let json = tokio::fs::read_to_string(&path).await.map_err(|e| e.to_string())?;
+    let config: ProviderConfig = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+    Ok(Some(config))
+}
+
+/// Launch Barony and navigate menus to start a new local game.
+#[tauri::command]
+async fn launch_game(config: ProviderConfig) -> Result<(), String> {
+    use game::launcher::{LaunchConfig, launch_and_start_game, auto_detect_barony};
+
+    let exe = config.barony_path
+        .as_deref()
+        .map(std::path::PathBuf::from)
+        .or_else(auto_detect_barony)
+        .ok_or_else(|| "Barony introuvable — configurez le chemin dans les paramètres.".to_string())?;
+
+    let launch_cfg = LaunchConfig {
+        barony_executable: exe,
+        character_class: config.character_class,
+        character_race: config.character_race,
+    };
+
+    launch_and_start_game(launch_cfg)
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Test a provider with a simple prompt to verify it responds correctly.
+#[tauri::command]
+async fn test_provider(
+    provider: String,
+    base_url: Option<String>,
+    api_key: Option<String>,
+    model: String,
+) -> Result<String, String> {
+    let p = ai_provider::build_provider(
+        &provider,
+        base_url.as_deref(),
+        api_key.as_deref(),
+        Some(&model),
+    )
+    .map_err(|e| e.to_string())?;
+    p.complete("You are a test assistant.", "Reply with exactly: OK")
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ─── Entry Point ──────────────────────────────────────────────────────────────
 
 fn main() {
@@ -95,6 +188,10 @@ fn main() {
             stop_run,
             get_run_history,
             get_lua_knowledge,
+            save_provider_config,
+            load_provider_config,
+            test_provider,
+            launch_game,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

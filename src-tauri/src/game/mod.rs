@@ -1,6 +1,7 @@
 pub mod controller;
 pub mod launcher;
 pub mod log_watcher;
+pub mod prologue;
 pub mod screenshot;
 
 /// The game state as reconstructed from log events.

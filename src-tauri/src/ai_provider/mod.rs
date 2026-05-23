@@ -64,33 +64,38 @@ pub fn build_provider(
     kind: &str,
     base_url: Option<&str>,
     api_key: Option<&str>,
+    model: Option<&str>,
 ) -> anyhow::Result<Box<dyn AIProvider>> {
     match kind.to_lowercase().as_str() {
         "ollama" => {
             let url = base_url.unwrap_or("http://localhost:11434").to_string();
-            Ok(Box::new(ollama::OllamaProvider::new(url)))
+            let mut p = ollama::OllamaProvider::new(url);
+            if let Some(m) = model { p = p.with_model(m); }
+            Ok(Box::new(p))
         }
         "lmstudio" | "lm_studio" | "lm studio" => {
             let url = base_url.unwrap_or("http://localhost:1234").to_string();
-            Ok(Box::new(lmstudio::LmStudioProvider::new(url)))
+            let mut p = lmstudio::LmStudioProvider::new(url);
+            if let Some(m) = model { p = p.with_model(m); }
+            Ok(Box::new(p))
         }
         "claude" => {
             let key = api_key
                 .ok_or_else(|| anyhow::anyhow!("Claude API requires an API key"))?
                 .to_string();
-            let url = base_url
-                .unwrap_or("https://api.anthropic.com")
-                .to_string();
-            Ok(Box::new(api::ClaudeProvider::new(url, key)))
+            let url = base_url.unwrap_or("https://api.anthropic.com").to_string();
+            let mut p = api::ClaudeProvider::new(url, key);
+            if let Some(m) = model { p = p.with_model(m); }
+            Ok(Box::new(p))
         }
         "openai" => {
             let key = api_key
                 .ok_or_else(|| anyhow::anyhow!("OpenAI API requires an API key"))?
                 .to_string();
-            let url = base_url
-                .unwrap_or("https://api.openai.com")
-                .to_string();
-            Ok(Box::new(api::OpenAIProvider::new(url, key)))
+            let url = base_url.unwrap_or("https://api.openai.com").to_string();
+            let mut p = api::OpenAIProvider::new(url, key);
+            if let Some(m) = model { p = p.with_model(m); }
+            Ok(Box::new(p))
         }
         other => anyhow::bail!("Unknown provider: {other}"),
     }
