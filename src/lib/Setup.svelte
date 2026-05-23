@@ -26,6 +26,23 @@
 
   // Barony config
   let baronyPath = '';
+  let characterClass = 'wanderer';
+  let characterRace  = 'Human';
+
+  // Launch state
+  let launching     = false;
+  let launchStatus  = null; // null | { ok: boolean, message: string }
+
+  const CLASSES = [
+    'barbarian','warrior','healer','rogue','wanderer','cleric','merchant',
+    'wizard','arcanist','joker','sexton','ninja','monk','conjurer','accursed',
+    'mesmer','brewer','mechanist','punisher','shaman','hunter',
+    'bard','sapper','scion','hermit','paladin',
+  ];
+  const RACES = [
+    'Human','Skeleton','Vampire','Succubus','Goatman','Automaton',
+    'Incubus','Goblin','Insectoid','Gnome','Gremlin','Dryad','Myconid','Salamander',
+  ];
 
   onMount(async () => {
     try {
@@ -37,7 +54,9 @@
           baseUrl = saved.base_url ?? p.defaultUrl;
           apiKey = saved.api_key ?? '';
           selectedModel = saved.model ?? '';
-          baronyPath = saved.barony_path ?? '';
+          baronyPath      = saved.barony_path      ?? '';
+        characterClass  = saved.character_class  ?? 'wanderer';
+        characterRace   = saved.character_race   ?? 'Human';
         }
       }
     } catch (e) {
@@ -127,7 +146,9 @@
           base_url: baseUrl || null,
           api_key: apiKey || null,
           model: selectedModel,
-          barony_path: baronyPath || null,
+          barony_path:     baronyPath     || null,
+          character_class: characterClass,
+          character_race:  characterRace,
         },
       });
       savedMsg = 'Configuration sauvegardée.';
@@ -145,6 +166,30 @@
     if (raw.includes('401') || raw.includes('Unauthorized')) return 'Clé API invalide ou expirée.';
     if (raw.includes('403')) return 'Accès refusé — vérifiez les permissions de votre clé API.';
     return raw;
+  }
+
+  async function launchGame() {
+    launching    = true;
+    launchStatus = null;
+    try {
+      const saved = await invoke('load_provider_config');
+      await invoke('launch_game', {
+        config: {
+          provider:        (saved?.provider)        ?? selectedProvider.id,
+          base_url:        (saved?.base_url)        ?? (baseUrl || null),
+          api_key:         (saved?.api_key)         ?? (apiKey  || null),
+          model:           (saved?.model)           ?? selectedModel,
+          barony_path:     baronyPath             || null,
+          character_class: characterClass,
+          character_race:  characterRace,
+        },
+      });
+      launchStatus = { ok: true, message: 'Partie lancée.' };
+    } catch (e) {
+      launchStatus = { ok: false, message: String(e) };
+    } finally {
+      launching = false;
+    }
   }
 
   $: canSave = selectedModel.length > 0 && (healthStatus === 'ok');
@@ -240,8 +285,47 @@
       <label class="form-field">
         <span class="field-label">Chemin vers l'exécutable</span>
         <input class="field-input" type="text" bind:value={baronyPath}
-          placeholder="/chemin/vers/barony" />
+          placeholder="Auto-détecté via Steam" />
       </label>
+    </div>
+  </section>
+
+  <!-- ── Bot configuration ──────────────────────────────────────────────────── -->
+  <section class="card">
+    <h2 class="card-title">Paramètres du bot</h2>
+    <div class="form-grid form-grid-2col">
+      <label class="form-field">
+        <span class="field-label">Classe</span>
+        <select class="field-input field-select" bind:value={characterClass}>
+          {#each CLASSES as c}
+            <option value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+          {/each}
+        </select>
+      </label>
+      <label class="form-field">
+        <span class="field-label">Race</span>
+        <select class="field-input field-select" bind:value={characterRace}>
+          {#each RACES as r}
+            <option value={r}>{r}</option>
+          {/each}
+        </select>
+      </label>
+    </div>
+
+    <div class="launch-row">
+      <button class="btn btn-launch" on:click={launchGame} disabled={launching}>
+        {#if launching}
+          <span class="spinner"></span> Lancement en cours…
+        {:else}
+          ▶ Lancer une partie
+        {/if}
+      </button>
+
+      {#if launchStatus}
+        <p class="launch-result" class:launch-ok={launchStatus.ok} class:launch-err={!launchStatus.ok}>
+          {launchStatus.ok ? '✓' : '✗'} {launchStatus.message}
+        </p>
+      {/if}
     </div>
   </section>
 
@@ -339,4 +423,40 @@
 
   .page-footer { margin-top: 1.5rem; display: flex; align-items: center; gap: 1rem; }
   .saved-msg { color: #4caf50; font-size: 0.85rem; }
+
+  .form-grid-2col { flex-direction: row; gap: 1rem; }
+  .form-grid-2col .form-field { flex: 1; }
+
+  .launch-row { margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .btn-launch {
+    background: #1a3a1a;
+    color: #4caf50;
+    border: 1px solid #2a5c2a;
+    padding: 0.55rem 1.4rem;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background 0.15s, border-color 0.15s;
+    align-self: flex-start;
+  }
+  .btn-launch:hover:not(:disabled) { background: #243d24; border-color: #3a7a3a; }
+  .btn-launch:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid #4caf5055;
+    border-top-color: #4caf50;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .launch-result { font-size: 0.83rem; margin: 0; }
+  .launch-ok  { color: #4caf50; }
+  .launch-err { color: #f44336; }
 </style>

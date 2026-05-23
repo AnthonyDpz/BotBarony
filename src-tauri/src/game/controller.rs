@@ -263,6 +263,26 @@ impl GameAPI {
         self.client.send_cmd("descend", None).await?; Ok(())
     }
 
+    /// Inject a key press into Barony's input system (works in menus too).
+    pub async fn menu_key(&self, key: &str, ticks: u32) -> anyhow::Result<()> {
+        let args = format!("{{\"key\":\"{key}\",\"ticks\":{ticks}}}");
+        self.client.send_cmd("menuKey", Some(&args)).await?;
+        Ok(())
+    }
+
+    /// Activate a named widget button in the current Barony menu.
+    pub async fn menu_click(&self, button: &str) -> anyhow::Result<()> {
+        let safe = button.replace('"', "\\\"");
+        let args = format!("{{\"button\":\"{safe}\"}}");
+        self.client.send_cmd("menuClick", Some(&args)).await?;
+        Ok(())
+    }
+
+    /// Query game / intro state (returns raw JSON Value).
+    pub async fn status(&self) -> anyhow::Result<serde_json::Value> {
+        self.client.send_cmd("status", None).await
+    }
+
     pub async fn poll_events(&self) -> Vec<GameEvent> {
         self.client.poll_events().await
     }

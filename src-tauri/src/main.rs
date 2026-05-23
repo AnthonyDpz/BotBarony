@@ -19,7 +19,14 @@ pub struct ProviderConfig {
     pub api_key: Option<String>,
     pub model: String,
     pub barony_path: Option<String>,
+    #[serde(default = "default_class")]
+    pub character_class: String,
+    #[serde(default = "default_race")]
+    pub character_race: String,
 }
+
+fn default_class() -> String { "wanderer".to_string() }
+fn default_race()  -> String { "Human".to_string() }
 
 fn config_path() -> std::path::PathBuf {
     dirs::config_dir()
@@ -112,6 +119,29 @@ async fn load_provider_config() -> Result<Option<ProviderConfig>, String> {
     Ok(Some(config))
 }
 
+/// Launch Barony and navigate menus to start a new local game.
+#[tauri::command]
+async fn launch_game(config: ProviderConfig) -> Result<(), String> {
+    use game::launcher::{LaunchConfig, launch_and_start_game, auto_detect_barony};
+
+    let exe = config.barony_path
+        .as_deref()
+        .map(std::path::PathBuf::from)
+        .or_else(auto_detect_barony)
+        .ok_or_else(|| "Barony introuvable — configurez le chemin dans les paramètres.".to_string())?;
+
+    let launch_cfg = LaunchConfig {
+        barony_executable: exe,
+        character_class: config.character_class,
+        character_race: config.character_race,
+    };
+
+    launch_and_start_game(launch_cfg)
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 /// Test a provider with a simple prompt to verify it responds correctly.
 #[tauri::command]
 async fn test_provider(
@@ -161,6 +191,7 @@ fn main() {
             save_provider_config,
             load_provider_config,
             test_provider,
+            launch_game,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
